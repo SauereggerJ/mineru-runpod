@@ -151,10 +151,7 @@ def _concurrency_modifier(current_concurrency: int) -> int:  # noqa: ARG001
 def _maybe_progress(job: dict, data: dict) -> None:
     """Best-effort progress update. Tests / sync clients without a job id
     shouldn't fail just because we tried to surface progress."""
-    try:
-        runpod.serverless.progress_update(job, data)
-    except Exception as e:  # noqa: BLE001
-        _logging.debug("progress_update failed", error=repr(e))
+    return
 
 
 def _build_debug(phase_ms: dict[str, int], gpu_info: dict[str, Any], **extra: Any) -> dict[str, Any]:
