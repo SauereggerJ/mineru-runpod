@@ -418,6 +418,21 @@ async def handler(job: dict) -> dict:
             if raw_input.get("probe") is True:
                 return await _handle_probe(started, gpu_info, phase_ms)
 
+            # Seed mode: download MinerU models onto the Network Volume once.
+            # No file source, no GPU inference — just a one-time fetch.
+            if raw_input.get("seed_volume") is True:
+                _logging.info("seeding network volume with MinerU models")
+                import seed_volume  # noqa: PLC0415
+                result = seed_volume.seed()
+                _logging.info("volume seed complete", **{f"model_{i}": m["model"] for i, m in enumerate(result["models"])})
+                return {
+                    "ok": True,
+                    "seed_volume": result,
+                    "elapsed_seconds": round(time.monotonic() - started, 2),
+                    "mineru_version": _parse.MINERU_VERSION,
+                    "debug": _build_debug(phase_ms, gpu_info),
+                }
+
             cleaned = _schema.validate_input(raw_input)
             return await _handle_parse(job, cleaned, started, gpu_info, phase_ms)
 

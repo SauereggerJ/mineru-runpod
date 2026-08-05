@@ -76,6 +76,7 @@ RUN uv pip install --system --no-cache -r requirements.txt
 # Model weights are intentionally NOT copied — they live on the Network
 # Volume (see HF_HOME above).
 COPY handler.py /worker/handler.py
+COPY seed_volume.py /worker/seed_volume.py
 COPY worker /worker/worker
 
 # Tiny fixture PDF used by local smoke input and optional Hub tests. It is
