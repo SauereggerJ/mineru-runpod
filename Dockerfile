@@ -7,38 +7,35 @@
 # At runtime: handler.py listens for RunPod jobs, downloads/decodes the input
 # PDF, calls MinerU's async parse, and returns the result as a base64 tarball.
 #
-# Model weights live on the attached Network Volume at
-# /runpod-volume/huggingface-cache (HF's default cache layout), NOT in the
-# image. This keeps the image at ~5 GB so fresh hosts pull it quickly and
-# reliably; the model cache is written once to the volume and reused by every
-# worker on every host. HF_HUB_OFFLINE=1 forces the libs to read from the
-# cache only — fail-fast against a misconfigured/missing volume.
-#
-# Populate the volume once before serving real traffic:
-#   HF_HOME=/runpod-volume/huggingface-cache HF_HUB_OFFLINE=0 python3 -c \
-#     "from huggingface_hub import snapshot_download; \
-#      snapshot_download(repo_id='opendatalab/MinerU2.5-Pro-2605-1.2B'); \
-#      snapshot_download(repo_id='opendatalab/PDF-Extract-Kit-1.0')"
+# Model weights are NOT baked into the image and NOT stored on a Network
+# Volume. The image stays ~5 GB so fresh hosts pull it quickly and reliably.
+# At boot, warmup.ensure_models() downloads both MinerU models into the
+# container's HF cache (Container Disk) when they are missing, then warms up
+# the VLM. HF_HUB_OFFLINE=1 keeps normal runtime offline; ensure_models()
+# temporarily disables it for the one-time fetch. No manual volume seeding
+# or region matching is required.
 #
 # Model selection: MinerU 3.2.x's library default is
 # `opendatalab/MinerU2.5-Pro-2605-1.2B` for the VLM backend; pipeline
-# backend uses `opendatalab/PDF-Extract-Kit-1.0`. Both live on the volume.
+# backend uses `opendatalab/PDF-Extract-Kit-1.0`. Both are fetched at boot.
 # Note: MinerU bumps the VLM default on minor-version releases (3.1→3.2
 # bumped 2604→2605); the requirements.txt pin is minor-locked to keep
-# the baked model in sync with the library default.
+# the fetched model in sync with the library default.
 
 ARG VLLM_VERSION=v0.11.2
 FROM vllm/vllm-openai:${VLLM_VERSION}
 
-# HF_HUB_OFFLINE=1 + TRANSFORMERS_OFFLINE=1 force the HuggingFace libs to
-# read from cache only. The cache lives on the Network Volume, which is
-# mounted at /runpod-volume. Offline mode prevents accidental downloads and
-# fail-fast against a misconfigured/missing volume.
+# Model weights are NOT baked into the image — the image stays ~5 GB so
+# fresh hosts pull it quickly and reliably. At boot, warmup.ensure_models()
+# downloads both MinerU models into the container's HF cache (Container Disk,
+# default 50 GB) when they are missing, then warms up the VLM. HF_HUB_OFFLINE=1
+# keeps normal runtime offline; ensure_models() temporarily disables it for
+# the one-time fetch.
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    HF_HOME=/runpod-volume/huggingface-cache \
-    HF_HUB_CACHE=/runpod-volume/huggingface-cache/hub \
+    HF_HOME=/root/.cache/huggingface \
+    HF_HUB_CACHE=/root/.cache/huggingface/hub \
     HF_HUB_OFFLINE=1 \
     TRANSFORMERS_OFFLINE=1
 
