@@ -28,16 +28,15 @@ FROM vllm/vllm-openai:${VLLM_VERSION}
 # Model weights are NOT baked into the image — the image stays ~5 GB so
 # fresh hosts pull it quickly and reliably. At boot, warmup.ensure_models()
 # downloads both MinerU models into the container's HF cache (Container Disk,
-# default 50 GB) when they are missing, then warms up the VLM. HF_HUB_OFFLINE=1
-# keeps normal runtime offline; ensure_models() temporarily disables it for
-# the one-time fetch.
+# default 50 GB) when they are missing, then warms up the VLM. Offline mode is
+# NOT set globally — huggingface_hub caches the flag at import time, so a global
+# HF_HUB_OFFLINE=1 would break ensure_models()' one-time fetch. Normal runtime
+# reads from the local cache; no per-job network model access happens.
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     HF_HOME=/root/.cache/huggingface \
-    HF_HUB_CACHE=/root/.cache/huggingface/hub \
-    HF_HUB_OFFLINE=1 \
-    TRANSFORMERS_OFFLINE=1
+    HF_HUB_CACHE=/root/.cache/huggingface/hub
 
 # vllm-openai inherits an entrypoint that launches the OpenAI server. Override
 # it so our handler can be the process.
@@ -74,6 +73,7 @@ RUN uv pip install --system --no-cache -r requirements.txt
 # Volume (see HF_HOME above).
 COPY handler.py /worker/handler.py
 COPY seed_volume.py /worker/seed_volume.py
+COPY http_server.py /worker/http_server.py
 COPY worker /worker/worker
 
 # Tiny fixture PDF used by local smoke input and optional Hub tests. It is
@@ -81,6 +81,7 @@ COPY worker /worker/worker
 # document without adding meaningful image size.
 COPY .runpod/test-fixture.pdf /worker/test-fixture.pdf
 
-# RunPod's serverless runtime invokes Python directly. `python3` is what
+# Pod entry point: boot the HTTP server (downloads models into the Container
+# Disk cache if missing, then serves /health + /parse). `python3` is what
 # vllm/vllm-openai ships on PATH; `python` is not always aliased.
-CMD ["python3", "-u", "handler.py"]
+CMD ["python3", "-u", "http_server.py", "--port", "8000"]

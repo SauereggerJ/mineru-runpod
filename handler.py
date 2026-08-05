@@ -550,7 +550,11 @@ def _bootstrap_main() -> None:
         # to lazy load if anything fails — every real job would then fail,
         # but the boot keeps going for the seed/probe paths.
         _warmup.check_volume()
-        _warmup.ensure_models()
+        try:
+            _warmup.ensure_models()
+        except Exception as exc:  # noqa: BLE001
+            _logging.error("model cache bootstrap failed", error=repr(exc))
+            _logging.error("jobs will fail until models are present on the container disk")
 
         # 2. Eager warmup. Same loop as the serve loop below — see
         # worker/warmup.py docstring for the asyncio invariant.
