@@ -71,7 +71,7 @@ async def _run_server(port: int) -> None:
     async def health(_: web.Request) -> web.Response:
         return web.json_response({
             "ok": True,
-            "mineru_available": _handler.MINERU_AVAILABLE,
+            "mineru_available": _handler._MINERU_AVAILABLE,
             "mineru_version": _handler.MINERU_VERSION,
             "model_dir": _debug.find_model_dir(),
         })
