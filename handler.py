@@ -529,6 +529,13 @@ def _bootstrap_main() -> None:
         # before serving; we run them async in the same loop).
         await run_fitness_checks()
 
+        # 1.5 Network Volume readiness. Model weights live on the volume
+        # (HF_HOME=/runpod-volume/huggingface-cache); if they're missing,
+        # surface it loudly before warmup so a misconfigured/missing volume
+        # isn't mistaken for a slow cold start. Warmup below is non-fatal
+        # and will fall back to lazy load, but every job would then fail.
+        _warmup.check_volume()
+
         # 2. Eager warmup. Same loop as the serve loop below — see
         # worker/warmup.py docstring for the asyncio invariant.
         await _warmup.warmup_async()

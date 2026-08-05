@@ -65,6 +65,30 @@ def _truthy(value: str) -> bool:
     return value.strip().lower() in ("1", "true", "yes", "on")
 
 
+def check_volume() -> None:
+    """Verify the model cache exists on the Network Volume.
+
+    Logs a prominent warning if HF_HOME points at /runpod-volume but the
+    MinerU VLM snapshot is absent, so an unpopulated/misconfigured volume
+    is obvious instead of presenting as a slow cold start.
+    """
+    hf_home = os.environ.get("HF_HOME", "")
+    if not hf_home.startswith("/runpod-volume"):
+        _log(f"HF_HOME={hf_home!r} is not on /runpod-volume; expecting volume-backed cache")
+        return
+    hub = Path(hf_home) / "hub"
+    if not hub.is_dir():
+        _log("NETWORK VOLUME EMPTY: expected model cache at " + str(hub))
+        _log("run `python3 seed_volume.py` on the volume before serving traffic")
+        return
+    models = list(hub.glob("models--opendatalab--MinerU*"))
+    if not models:
+        _log(f"NETWORK VOLUME MISSING VLM MODEL: no models--opendatalab--MinerU* under {hub}")
+        _log("run `python3 seed_volume.py` on the volume before serving traffic")
+        return
+    _log(f"volume model cache OK: {', '.join(p.name for p in models)}")
+
+
 async def warmup_async() -> None:
     """Run one throwaway parse at boot to load model + compile kernels.
 
