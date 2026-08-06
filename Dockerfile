@@ -27,16 +27,20 @@ FROM vllm/vllm-openai:${VLLM_VERSION}
 
 # Model weights are NOT baked into the image — the image stays ~5 GB so
 # fresh hosts pull it quickly and reliably. At boot, warmup.ensure_models()
-# downloads both MinerU models into the container's HF cache (Container Disk,
-# default 50 GB) when they are missing, then warms up the VLM. Offline mode is
-# NOT set globally — huggingface_hub caches the flag at import time, so a global
-# HF_HUB_OFFLINE=1 would break ensure_models()' one-time fetch. Normal runtime
-# reads from the local cache; no per-job network model access happens.
+# downloads both MinerU models into the HF cache (Container Disk by default,
+# or /workspace when HF_HOME is overridden for a Volume Disk) when they are
+# missing, then warms up the VLM. Offline mode is NOT set globally —
+# huggingface_hub caches the flag at import time, so a global HF_HUB_OFFLINE=1
+# would break ensure_models()' one-time fetch. Normal runtime reads from the
+# local cache; no per-job network model access happens.
+# NB: HF_HUB_CACHE is intentionally NOT set here — huggingface_hub resolves
+# it from HF_HOME/hub, so a deployment overriding HF_HOME=/workspace/... moves
+# the whole model cache onto the persistent Volume Disk. Setting it directly
+# would pin models to the ephemeral Container Disk and defeat the override.
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    HF_HOME=/root/.cache/huggingface \
-    HF_HUB_CACHE=/root/.cache/huggingface/hub
+    HF_HOME=/root/.cache/huggingface
 
 # vllm-openai inherits an entrypoint that launches the OpenAI server. Override
 # it so our handler can be the process.
